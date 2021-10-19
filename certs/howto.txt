@@ -1,0 +1,34 @@
+cd EasyRSA-$version
+
+cp vars.example vars
+edit vars
+
+./easyrsa ini-pki
+./easyrsa build-ca nopass
+# key - pki/private/ca.key
+# crt - pki/ca.crt
+
+#--- server ---
+./easyrsa build-server-full $SERVER_NAME nopass
+# key - pki/private/$SERVER_NAME.key
+# crt - pki/issued/$SERVER_NAME.crt
+
+#--- client (each) ---
+./easyrsa build-client-full $CLIENT_NAME nopass
+# key - pki/private/$CLIENT_NAME.key
+# crt - pki/issued/$SCLIENT_NAME.crt
+
+##### Alt way #####
+#--- server ---
+./easyrsa gen-req $SERVER_NAME nopass
+./easyrsa sign-req server $SERVER_NAME
+
+#--- client ---
+./easyrsa gen-req $CLIENT_NAME nopass
+./easyrsa sign-req client $CLIENT_NAME
+
+### verify cert ###
+openssl verify -CAfile pki/ca.crt pki/issued/$NAME.crt
+
+### not needed for AWS - DH key ###
+# pki/dh.pem

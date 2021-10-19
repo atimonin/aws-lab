@@ -1,0 +1,14 @@
+plugin: amazon.aws.aws_ec2
+aws_profile: "default"
+regions:
+  - "eu-west-2"  # London
+filters:
+  tag:student: "atimonin"
+  tag:Name: "nexus_template_instance"
+hostnames:
+  - tag:Name
+  - dns-name
+  - ip-address
+
+compose:
+  ansible_host: public_ip_address

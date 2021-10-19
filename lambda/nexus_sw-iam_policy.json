@@ -1,0 +1,40 @@
+{
+   "Version": "2012-10-17",
+   "Statement": [
+     {
+       "Sid": "CloudwatchLogs",
+       "Effect": "Allow",
+       "Action": [
+         "logs:CreateLogGroup",
+         "logs:CreateLogStream",
+         "logs:PutLogEvents"
+       ],
+       "Resource": "arn:aws:logs:*:${myAccountId}:log-group:*"
+     },
+     {
+       "Sid": "EC2list",
+       "Action": [
+         "ec2:DescribeInstance*"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+     },
+     {
+       "Sid": "EC2write",
+       "Action": [
+	 "ec2:Start*",
+	 "ec2:Stop*"
+       ],
+       "Effect": "Allow",
+       "Resource": "arn:aws:ec2:*:${myAccountId}:instance/*"
+     },
+     {
+       "Sid": "ELBV2",
+       "Action": [
+         "elasticloadbalancing:Describe*"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+     }
+   ]
+}

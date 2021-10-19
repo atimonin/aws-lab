@@ -1,0 +1,122 @@
+- hosts: nexus_template_instance
+  become: yes
+
+  vars:
+    efs_mount_point: "/srv/efs"
+
+  tasks:
+    - name: install packages
+      apt:
+        update_cache: yes
+        name: 
+          - "openjdk-8-jdk"
+          - "nfs-common"
+
+    - name: create nexus user
+      user:
+        name: "{{ nexus_user }}"
+        home: "{{ nexus_home }}"
+        system: yes
+        shell: /bin/bash
+
+    - name: nexus user sudo without password
+      copy:
+        dest: /etc/sudoers.d/nexus
+        content: |
+          nexus   ALL=(ALL)       NOPASSWD: ALL
+
+    - name: download nexus distro
+      get_url:
+        url: "https://sonatype-download.global.ssl.fastly.net/repository/downloads-prod-group/3/nexus-{{ nexus_version }}-unix.tar.gz"
+        dest: "{{ nexus_home }}"
+
+    - name: unpack distro
+      unarchive:
+        remote_src: yes
+        src: "{{ nexus_home }}//nexus-{{ nexus_version }}-unix.tar.gz"
+        dest: "{{ nexus_home }}"
+        owner: "{{ nexus_user }}"
+        group: "{{ nexus_user }}"
+        extra_opts:
+          - "--strip-components=1"
+
+    - name: fix run_as_user in nexus.rc
+      lineinfile:
+        path: "{{ nexus_home }}/bin/nexus.rc"
+        regexp: 'run_as_user'
+        line: "run_as_user={{ nexus_user }}"
+
+    - name: fix memory in nexus.vmoptions
+      lineinfile:
+        path: "{{ nexus_home }}/bin/nexus.vmoptions"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^-Xms', line: "-Xms{{ nexus_max_memory }}" }
+        - { regexp: '^-Xmx', line: "-Xmx{{ nexus_max_memory }}" }
+        - { regexp: '^-XX:MaxDirectMemorySize', line: "-XX:MaxDirectMemorySize={{ nexus_max_memory }}" }
+
+    - name: fix sonatype-work path in nexus.vmoptions
+      replace:
+        path: "{{ nexus_home }}/bin/nexus.vmoptions"
+        regexp: '\.\./sonatype-work'
+        replace: './sonatype-work'
+
+    - name: create EFS mountpoint
+      file:
+        path: "/srv/nexus"
+        state: directory
+
+    - name: Mount EFS
+      ansible.posix.mount:
+        src: "{{ nexus_mount_dns }}:/"
+        fstype: nfs
+        state: mounted
+        path: "/srv/nexus" 
+
+    - name: create sonatype-work on EFS
+      file:
+        path: "/srv/nexus/sonatype-work"
+        state: directory
+        owner: "{{ nexus_user }}"
+        group: "{{ nexus_user }}"
+
+    - name: Link sonatype-work
+      file:
+        path: "{{ nexus_home }}/sonatype-work"
+        src: "/srv/nexus/sonatype-work"
+        state: link
+
+    - name: put nexus.service
+      template:
+        src: "{{ playbook_dir }}/templates/nexus.service.j2"
+        dest: "/etc/systemd/system/nexus.service"
+
+    - name: enable and start nexus
+      systemd:
+        name: nexus
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: wait for ready state
+      wait_for:
+        delay: 60
+        sleep: 5
+        path: "{{ nexus_home}}/sonatype-work/nexus3/log/nexus.log"
+        search_regex: 'Started Sonatype Nexus'
+
+    - name: get initial admin password
+      slurp:
+        src: "{{ nexus_home }}/sonatype-work/nexus3/admin.password"
+      register: init_password
+
+    - name: set admin password, deny anonymous access
+      shell: |
+        curl -if -u 'admin:{{ init_password.content | b64decode }}' -X PUT -H 'Content-Type: text/plain' \
+        --data '{{ admin_password }}' \
+        http://localhost:8081/service/rest/internal/ui/onboarding/change-admin-password
+        curl -if -u 'admin:{{ admin_password }}' -X PUT -H 'Content-Type: application/json' \
+        --data '{ "enabled":false, "userId": "anonymous", "realmName": "NexusAuthorizingRealm" }' \
+        http://localhost:8081/service/rest/v1/security/anonymous
+

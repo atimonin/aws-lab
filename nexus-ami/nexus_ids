@@ -1,0 +1,2 @@
+export NEXUS_AMI_ID="ami-018d874727b19377f"
+export NEXUS_EFS_ID="fs-6e0cc19e"
