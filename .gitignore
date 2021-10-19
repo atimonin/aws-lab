@@ -1,3 +1,4 @@
 Notes.rtf
 **/.terraform
 terraform.*
+**/*.tfplan
