@@ -36,3 +36,10 @@ resource "aws_acm_certificate" "client_cert" {
     }
 }
 
+output "server_cert_arn" {
+    value = aws_acm_certificate.server_cert.arn
+}
+
+output "client_cert_arn" {
+    value = aws_acm_certificate.client_cert.arn
+}
